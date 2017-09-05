@@ -1,0 +1,72 @@
+name: kontor-suite
+image: docker.io/lorbuscode/kontor-suite
+description: Kontor Digital Communications Suite
+bindable: False
+async: optional
+metadata:
+  displayName: Kontor Suite APB
+plans:
+  - name: default
+    description: default non-HA plan
+    free: True
+    metadata:
+      displayName: Default
+    parameters:
+      - name: service_account_useroot
+        default: useroot
+        type: string
+        title: Service account to use for running the pods
+        description: It has to allow running containers as root, e.g. oc create serviceaccount useroot; oc adm policy add-scc-to-user anyuid -z useroot
+      - name: domain
+        default: example.com
+        type: string
+        title: Deployment Domain
+        required: true
+      - name: ipa_admin_password
+        default: admin
+        type: string
+        title: FreeIPA Admin Password
+        required: true
+      - name: ipa_cluster_ip
+        default: '172.30.1.100'
+        type: string
+        title: FreeIPA Internal Cluster IP
+        required: true
+      - name: ipa_timeout
+        default: '600'
+        # TODO: Type
+        title: FreeIPA Timeout for Pods to become ready (in seconds)
+        required: true
+      - name: ipa_hostname
+        default: ipa
+        type: string
+        title: FreeIPA Server Hostname
+        required: true
+      - name: ipa_server_install_opts
+        default: '-U -r EXAMPLE.TEST --setup-dns --no-forwarders --no-ntp'
+        type: string
+        title: FreeIPA Options passed to ipa-server-install
+        required: true
+      - name: ipa_volume_capacity
+        default: 1Gi
+        title: FreeIPA Volume Capacity
+        required: true
+      - name: mail_hostname
+        default: mail
+        type: string
+        title: SMTP/IMAP Hostname
+        required: true
+      - name: mda_volume_capacity
+        default: 10Gi
+        title: Dovecot Mail Storage Volume Capacity
+        required:
+      - name: mda_cluster_ip
+        default: '172.30.1.101'
+        type: string
+        title: Dovecot Internal Cluster IP
+        required: true
+      - name: mta_cluster_ip
+        default: '172.30.1.104'
+        type: string
+        title: Postfix Internal Cluster IP
+        required: true
