@@ -1,0 +1,27 @@
+- name: contor-apb playbook to test the application
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  roles:
+  - role: ansible.kubernetes-modules
+    install_python_requirements: no
+  - role: ansibleplaybookbundle.asb-modules
+
+  post_tasks:
+  - name: Run the provisioning role
+    include_role:
+      name: provision-contor-apb
+
+  - name: Retrieve pod list for namespace
+    k8s_v1_pod_list:
+      namespace: '{{ namespace }}'
+    register: pod_list_probe
+
+  - name: Save test result
+    asb_save_test_result:
+      message: '{{ pod_list_probe }}'
+      fail: false
+
+  - name: Run the deprovisioning role
+    include_role:
+      name: deprovision-contor-apb

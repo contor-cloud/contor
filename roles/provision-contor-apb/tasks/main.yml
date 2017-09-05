@@ -1,0 +1,556 @@
+##############################################################################
+##
+## Provision Contor Communications Cloud
+##
+##############################################################################
+
+##############################################################################
+## Provision FreeIPA
+##############################################################################
+- name: Create ipa data pvc
+  k8s_v1_persistent_volume_claim:
+    name: ipa-pvc
+    namespace: '{{ namespace }}'
+    access_modes:
+      - ReadWriteOnce
+    resources_requests:
+      storage: '{{ ipa_volume_capacity }}'
+
+- name: Create FreeIPA admin password secret
+  k8s_v1_secret:
+    name: ipa-password
+    string_data:
+      admin.password: '{{ ipa_admin_password }}'
+
+- name: Create ipa deployment config
+  openshift_v1_deployment_config:
+    name: ipa
+    namespace: '{{ namespace }}'
+    labels:
+      app: contor-apb
+      service: ipa
+    replicas: 1
+    selector:
+      app: contor-apb
+      service: ipa
+    spec_template_metadata_labels:
+      app: contor-apb
+      service: ipa
+    strategy_type: Recreate
+    strategy_recreate_params:
+      timeout_seconds: '{{ ipa_timeout }}'
+    triggers:
+    - type: ConfigChange
+    test: false
+    volumes:
+    - name: ipa-data
+      persistent_volume_claim:
+        claim_name: ipa-pvc
+    - name: ipa-run
+      empty_dir: {}
+    - name: ipa-tmp
+      empty_dir: {}
+    - name: ipa-journal
+      empty_dir: {}
+    containers:
+    - image: docker.io/freeipa/freeipa-server:latest
+      name: freeipa
+      env:
+      - name: IPA_SERVER_HOSTNAME
+        value: '{{ ipa_hostname }}.{{ domain }}'
+      - name: IPA_SERVER_IP
+        value: '{{ ipa_cluster_ip }}'
+      - name: IPA_SERVER_INSTALL_OPTS
+        value: '{{ ipa_server_install_opts }}'
+      - name: PASSWORD
+        value_from:
+          secret_key_ref:
+            name: ipa-password
+            key: admin.password
+      ports:
+      - container_port: 53
+        protocol: TCP
+      - container_port: 53
+        protocol: UDP
+      - container_port: 80
+        protocol: TCP
+      - container_port: 88
+        protocol: TCP
+      - container_port: 88
+        protocol: UDP
+      - container_port: 123
+        protocol: UDP
+      - container_port: 389
+        protocol: TCP
+      - container_port: 443
+        protocol: TCP
+      - container_port: 464
+        protocol: TCP
+      - container_port: 464
+        protocol: UDP
+      - container_port: 636
+        protocol: TCP
+      - container_port: 7389
+        protocol: TCP
+      - container_port: 9443
+        protocol: TCP
+      - container_port: 9444
+        protocol: TCP
+      - container_port: 9445
+        protocol: TCP
+      volume_mounts:
+      - name: ipa-data
+        mount_path: /data
+      - name: ipa-run
+        mount_path: /run
+      - name: ipa-data
+        mount_path: /tmp
+      - name: ipa-journal
+        mount_path: /var/log/journal
+      # TODO: REVIEW
+      readiness_probe:
+        exec_command: ['/usr/bin/systemctl', 'status', 'ipa']
+        initial_delay_seconds: 60
+        timeout_seconds: 10
+        period_seconds: 10
+        success_threshold: 1
+        failure_threshold: 3
+    # TODO: REVIEW
+    # dns_policy: ClusterFirst
+    restart_policy: Always
+    service_account_name: '{{ service_account_useroot }}'
+    security_context: {}
+
+- name: Create ipa service
+  k8s_v1_service:
+    name: ipa
+    namespace: '{{ namespace }}'
+    labels:
+      app: contor-apb
+      service: ipa
+    selector:
+      app: contor-apb
+      service: ipa
+    cluster_ip: '{{ ipa_cluster_ip }}'
+    ports:
+    - name: ipa-dns-tcp
+      protocol: TCP
+      port: 53
+      target_port: 53
+    - name: ipa-dns-udp
+      protocol: UDP
+      port: 53
+      target_port: 53
+    - name: ipa-http
+      protocol: TCP
+      port: 80
+      target_port: 80
+    - name: ipa-kerberos-tcp
+      protocol: TCP
+      port: 88
+      target_port: 88
+    - name: ipa-kerberos-udp
+      protocol: UDP
+      port: 88
+      target_port: 88
+    - name: ipa-ntp
+      protocol: UDP
+      port: 123
+      target_port: 123
+    - name: ipa-ldap
+      protocol: TCP
+      port: 389
+      target_port: 389
+    - name: ipa-https
+      protocol: TCP
+      port: 443
+      target_port: 443
+    - name: ipa-kpasswd-tcp
+      protocol: TCP
+      port: 464
+      target_port: 464
+    - name: ipa-kpasswd-udp
+      protocol: UDP
+      port: 464
+      target_port: 464
+    - name: ipa-ldaps
+      protocol: TCP
+      port: 636
+      target_port: 636
+    - name: ipa-ldap-replication
+      protocol: TCP
+      port: 7389
+      target_port: 7389
+    - name: ipa-ca-webui
+      protocol: TCP
+      port: 9443
+      target_port: 9443
+    - name: ipa-ca-https
+      protocol: TCP
+      port: 9444
+      target_port: 9444
+    - name: ipa-ca-admin
+      protocol: TCP
+      port: 9445
+      target_port: 9445
+
+- name: Create ipa route
+  openshift_v1_route:
+    annotations:
+      kubernetes.io/tls-acme: true
+      # TODO Investigate: Is /var/run/secrets/kubernetes.io/serviceaccount/ca.crt mounted on every container, anyway?
+      kubernetes.io/tls-acme-secretname: ipa-cert
+    name: ipa-https
+    namespace: '{{ namespace }}'
+    labels:
+      app: contor-apb
+      service: ipa
+    to_name: ipa
+    # TODO: REVIEW
+    # host: 'ipa.{{ domain }}'
+    spec_port_target_port: ipa-https
+    # TODO: REVIEW
+    spec_tls_termination: passthrough
+
+- name: Retrieve pod list for namespace
+  k8s_v1_pod_list:
+    namespace: '{{ namespace }}'
+  register: pod_list
+
+- name: Retrieve ipa pod name
+  shell: 'echo {{ pod_list.stdout }} | sed -n -e "s/^\(.*\)\(ipa-\)+[0-9]\(-\)+[a-zA-Z0-9]\(.*\)$/p"'
+  register: ipa_pod_name
+
+- name: Create FreeIPA IMAP service principles
+  shell: 'oc exec {{ ipa_pod_name.stdout }} -c freeipa ipa service-add imap/{{ mda_hostname }}.{{ domain }}'
+
+- name: Create FreeIPA SMTP service principles
+  shell: 'oc exec {{ ipa_pod_name.stdout }} -c freeipa ipa service-add smtp/{{ mta_hostname }}.{{ domain }}'
+
+##############################################################################
+## Provision Dovecot
+##############################################################################
+- name: Create mail storage pvc
+  k8s_v1_persistent_volume_claim:
+    name: mail-storage-pvc
+    namespace: '{{ namespace }}'
+    access_modes:
+      - ReadWriteOnce
+    resources_requests:
+      storage: '{{ mda_volume_capacity }}'
+
+- name: Copy Dovecot configuration
+  copy:
+    src: dovecot.conf
+    dest: /tmp/config/dovecot.conf
+
+- name: Create Dovecot config map
+  k8s_v1_config_map:
+    name: dovecot-config
+    data:
+      dovecot.conf: '$(cat /tmp/config/dovecot.conf)'
+
+- name: Create mda deployment config
+  openshift_v1_deployment_config:
+    name: mda
+    namespace: '{{ namespace }}'
+    labels:
+      app: contor-apb
+      service: mda
+    replicas: 1
+    selector:
+      app: contor-apb
+      service: mda
+    spec_template_metadata_labels:
+      app: contor-apb
+      service: mda
+    strategy_type: Recreate
+    triggers:
+    - type: ConfigChange
+    test: false
+    volumes:
+    - name: mda-config
+      config_map:
+        name: dovecot-config
+    - name: mda-cert
+      secret:
+        secret_name: mda-cert
+    - name: mail-storage
+      persistent_volume_claim:
+        claim_name: mail-storage-pvc
+    - name: mda-run
+      empty_dir: {}
+    - name: mda-tmp
+      empty_dir: {}
+    - name: mda-journal
+      empty_dir: {}
+    containers:
+    - env:
+      image: docker.io/lorbus/dovecot:latest
+      name: dovecot
+      ports:
+      - container_port: 24
+        protocol: TCP
+      - container_port: 636
+        protocol: TCP
+      - container_port: 993
+        protocol: TCP
+      - container_port: 995
+        protocol: TCP
+      # TODO: Sieve
+      # - container_port: 4190
+      #   protocol: TCP
+      # TODO: Doveadm
+      # - container_port: 19991
+      #   protocol: TCP
+      volume_mounts:
+      - mount_path: /etc/dovecot
+        name: mda-config
+        read_only:
+      - mount_path: /etc/dovecot/certs
+        name: mda-cert
+        read_only: true
+      - mount_path: /mail
+        name: mail-storage
+      - mount_path: /var/log/journal
+        name: mda-journal
+      - mount_path: /tmp
+        name: mda-tmp
+      - mount_path: /run
+        name: mda-run
+      # TODO: REVIEW
+      readiness_probe:
+        exec_command: ['/usr/bin/systemctl', 'status', 'dovecot']
+        initial_delay_seconds: 60
+        timeout_seconds: 10
+        period_seconds: 10
+        success_threshold: 1
+        failure_threshold: 3
+    # TODO: REVIEW
+    # dns_policy: ClusterFirst
+    restart_policy: Always
+    service_account_name: '{{ service_account_useroot }}'
+    security_context: {}
+
+- name: Create mda service
+  k8s_v1_service:
+    name: mda
+    namespace: '{{ namespace }}'
+    labels:
+      app: contor-apb
+      service: mda
+    selector:
+      app: contor-apb
+      service: mda
+    cluster_ip: '{{ mda_cluster_ip }}'
+    ports:
+    - name: mda-lmtp-port-24
+      protocol: TCP
+      port: 24
+      target_port: 24
+    - name: mda-ldaps-port-636
+      protocol: TCP
+      port: 636
+      target_port: 636
+    - name: mda-imaps-port-993
+      protocol: TCP
+      port: 993
+      target_port: 993
+    - name: mda-pops-port-995
+      protocol: TCP
+      port: 995
+      target_port: 995
+
+- name: Create mda route
+  openshift_v1_route:
+    annotations:
+      kubernetes.io/tls-acme: true
+      # TODO Investigate: Is /var/run/secrets/kubernetes.io/serviceaccount/ca.crt mounted on every container, anyway?
+      kubernetes.io/tls-acme-secretname: mda-cert
+    name: mda
+    namespace: '{{ namespace }}'
+    labels:
+      app: contor-apb
+      service: mda
+    to_name: mda
+    # TODO: REVIEW
+    # host: 'mda.{{ domain }}'
+    spec_port_target_port: mda-imaps-port-993
+    spec_port_target_port: mda-pops-port-995
+    # TODO: REVIEW
+    # spec_tls_termination: passthrough
+
+# TODO: Join IPA Realm
+
+##############################################################################
+## Provision Clamd
+##############################################################################
+# TODO
+
+##############################################################################
+## Provision Rspamd
+##############################################################################
+# TODO
+
+##############################################################################
+## Provision Postfix
+##############################################################################
+- name: Copy Postfix configuration
+  copy:
+    src: '{{ item }}'
+    dest: '/tmp/config/postfix/{{ item }}'
+  with_items:
+    - postfix-main.cf
+    - postfix-master.cf
+    - postfix-ldap_aliases.cf
+    - postfix-outgoing_mail_header_filter
+    - postfix-recipient_checks
+
+- name: Create Postfix config map
+  k8s_v1_config_map:
+    name: postfix-config
+    data:
+      main.cf: '$(cat /tmp/config/postfix-main.cf)'
+      master.cf: '$(cat /tmp/config/postfix-master.cf)'
+      ldap_aliases.cf: '$(cat /tmp/config/postfix-ldap_aliases.cf)'
+      outgoing_mail_header_filters: '$(cat /tmp/config/postfix-outgoing_mail_header_filter)'
+      recipient_checks: '$(cat /tmp/config/postfix-recipient_checks)'
+
+- name: Create mta deployment config
+  openshift_v1_deployment_config:
+    name: mta
+    namespace: '{{ namespace }}'
+    labels:
+      app: contor-apb
+      service: mta
+    replicas: 1
+    selector:
+      app: contor-apb
+      service: mta
+    spec_template_metadata_labels:
+      app: contor-apb
+      service: mta
+    strategy_type: Recreate
+    triggers:
+    - type: ConfigChange
+    test: false
+    volumes:
+    - name: mta-config
+      config_map:
+        name: postfix-config
+    - name: mta-cert
+      secret:
+        secret_name: mta-cert
+    - name: mta-spool
+      empty_dir: {}
+    - name: mta-journal
+      empty_dir: {}
+    - name: mta-run
+      empty_dir: {}
+    - name: mta-tmp
+      empty_dir: {}
+    containers:
+    - env:
+      image: docker.io/lorbus/postfix:latest
+      name: postfix
+      ports:
+      - container_port: 25
+        protocol: TCP
+      - container_port: 587
+        protocol: TCP
+      - container_port: 636
+        protocol: TCP
+      volume_mounts:
+      - mount_path: /etc/postfix
+        name: mta-config
+        read_only:
+      - mount_path: /etc/ssl/mail
+        name: mta-cert
+        read_only: true
+      - mount_path: /var/spool/postfix
+        name: mta-spool
+      - mount_path: /var/log/journal
+        name: mta-journal
+      - mount_path: /tmp
+        name: mta-tmp
+      - mount_path: /run
+        name: mta-run
+      # TODO: REVIEW
+      readiness_probe:
+        exec_command: ['/usr/bin/systemctl', 'status', 'postfix']
+        initial_delay_seconds: 60
+        timeout_seconds: 10
+        period_seconds: 10
+        success_threshold: 1
+        failure_threshold: 3
+    # TODO: REVIEW
+    # dns_policy: ClusterFirst
+    restart_policy: Always
+    service_account_name: '{{ service_account_useroot }}'
+    security_context: {}
+
+- name: Create mta service
+  k8s_v1_service:
+    name: mta
+    namespace: '{{ namespace }}'
+    labels:
+      app: contor-apb
+      service: mta
+    selector:
+      app: contor-apb
+      service: mta
+    cluster_ip: '{{ mta_cluster_ip }}'
+    ports:
+    - name: mta-smtp-port-25
+      protocol: TCP
+      port: 25
+      target_port: 25
+    - name: mta-msa-port-587
+      protocol: TCP
+      port: 587
+      target_port: 587
+    - name: mta-ldaps-port-636
+      protocol: TCP
+      port: 636
+      target_port: 636
+
+- name: Create mta route
+  openshift_v1_route:
+    annotations:
+      kubernetes.io/tls-acme: true
+      # TODO Investigate: Is /var/run/secrets/kubernetes.io/serviceaccount/ca.crt mounted on every container, anyway?
+      kubernetes.io/tls-acme-secretname: mta-cert
+    name: mta
+    namespace: '{{ namespace }}'
+    labels:
+      app: contor-apb
+      service: mta
+    to_name: mta
+    # TODO: REVIEW
+    # host: 'mta.{{ domain }}'
+    spec_port_target_port: mta-smtp-port-25
+    spec_port_target_port: mta-msa-port-587
+    # TODO: REVIEW
+    # spec_tls_termination: passthrough
+
+# TODO: Join IPA Realm
+
+##############################################################################
+## Provision LibreOffice Online
+##############################################################################
+# TODO
+
+##############################################################################
+## Provision Prosody
+##############################################################################
+# TODO
+
+##############################################################################
+## Provision Turnserver
+##############################################################################
+# TODO
+
+##############################################################################
+## Provision NextCloud
+##############################################################################
+# TODO
