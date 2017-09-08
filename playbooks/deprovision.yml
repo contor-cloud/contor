@@ -1,4 +1,4 @@
-- name: kontor-suite playbook to provision the application
+- name: kontor-suite playbook to deprovision the application
   hosts: localhost
   gather_facts: false
   connection: local
@@ -6,5 +6,5 @@
   - role: ansible.kubernetes-modules
     install_python_requirements: no
   - role: ansibleplaybookbundle.asb-modules
-  - role: provision-kontor-suite
+  - role: deprovision-kontor-suite
     playbook_debug: false

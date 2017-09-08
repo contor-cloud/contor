@@ -7,12 +7,6 @@
 ##############################################################################
 ## Provision FreeIPA
 ##############################################################################
-- name: Create FreeIPA admin password secret
-  k8s_v1_secret:
-    name: ipa-password
-    string_data:
-      admin.password: '{{ ipa_admin_password }}'
-
 - name: Create ipa data pvc
   k8s_v1_persistent_volume_claim:
     name: ipa-pvc
@@ -21,6 +15,12 @@
       - ReadWriteOnce
     resources_requests:
       storage: '{{ ipa_volume_capacity }}'
+
+- name: Create FreeIPA admin password secret
+  k8s_v1_secret:
+    name: ipa-password
+    string_data:
+      admin.password: '{{ ipa_admin_password }}'
 
 - name: Create ipa deployment config
   openshift_v1_deployment_config:
@@ -38,7 +38,7 @@
       service: ipa
     strategy_type: Recreate
     strategy_recreate_params:
-      timeout_seconds: {{ ipa_timeout }}
+      timeout_seconds: '{{ ipa_timeout }}'
     triggers:
     - type: ConfigChange
     test: false
@@ -53,20 +53,20 @@
     - name: ipa-journal
       empty_dir: {}
     containers:
-    - env:
+    - image: docker.io/freeipa/freeipa-server:latest
+      name: freeipa
+      env:
       - name: IPA_SERVER_HOSTNAME
-        value: {{ ipa_hostname }}.{{ domain }}
+        value: '{{ ipa_hostname }}.{{ domain }}'
       - name: IPA_SERVER_IP
-        value: {{ ipa_cluster_ip }}
+        value: '{{ ipa_cluster_ip }}'
       - name: IPA_SERVER_INSTALL_OPTS
-        value: {{ ipa_server_install_opts }}
+        value: '{{ ipa_server_install_opts }}'
       - name: PASSWORD
         value_from:
           secret_key_ref:
             name: ipa-password
             key: admin.password
-      image: docker.io/freeipa/freeipa-server:latest
-      name: freeipa
       ports:
       - container_port: 53
         protocol: TCP
@@ -118,7 +118,7 @@
     # TODO: REVIEW
     # dns_policy: ClusterFirst
     restart_policy: Always
-    service_account_name: {{ service_account_useroot }}
+    service_account_name: '{{ service_account_useroot }}'
     security_context: {}
 
 - name: Create ipa service
@@ -131,68 +131,68 @@
     selector:
       app: kontor-suite
       service: ipa
-    cluster_ip: {{ ipa_cluster_ip }}
+    cluster_ip: '{{ ipa_cluster_ip }}'
     ports:
-      - name: ipa-dns-tcp
-        protocol: TCP
-        port: 53
-        target_port: 53
-      - name: ipa-dns-udp
-        protocol: UDP
-        port: 53
-        target_port: 53
-      - name: ipa-http
-        protocol: TCP
-        port: 80
-        target_port: 80
-      - name: ipa-kerberos-tcp
-        protocol: TCP
-        port: 88
-        target_port: 88
-      - name: ipa-kerberos-udp
-        protocol: UDP
-        port: 88
-        target_port: 88
-      - name: ipa-ntp
-        protocol: UDP
-        port: 123
-        target_port: 123
-      - name: ipa-ldap
-        protocol: TCP
-        port: 389
-        target_port: 389
-      - name: ipa-https
-        protocol: TCP
-        port: 443
-        target_port: 443
-      - name: ipa-kpasswd-tcp
-        protocol: TCP
-        port: 464
-        target_port: 464
-      - name: ipa-kpasswd-udp
-        protocol: UDP
-        port: 464
-        target_port: 464
-      - name: ipa-ldaps
-        protocol: TCP
-        port: 636
-        target_port: 636
-      - name: ipa-ldap-replication
-        protocol: TCP
-        port: 7389
-        target_port: 7389
-      - name: ipa-ca-webui
-        protocol: TCP
-        port: 9443
-        target_port: 9443
-      - name: ipa-ca-https
-        protocol: TCP
-        port: 9444
-        target_port: 9444
-      - name: ipa-ca-admin
-        protocol: TCP
-        port: 9445
-        target_port: 9445
+    - name: ipa-dns-tcp
+      protocol: TCP
+      port: 53
+      target_port: 53
+    - name: ipa-dns-udp
+      protocol: UDP
+      port: 53
+      target_port: 53
+    - name: ipa-http
+      protocol: TCP
+      port: 80
+      target_port: 80
+    - name: ipa-kerberos-tcp
+      protocol: TCP
+      port: 88
+      target_port: 88
+    - name: ipa-kerberos-udp
+      protocol: UDP
+      port: 88
+      target_port: 88
+    - name: ipa-ntp
+      protocol: UDP
+      port: 123
+      target_port: 123
+    - name: ipa-ldap
+      protocol: TCP
+      port: 389
+      target_port: 389
+    - name: ipa-https
+      protocol: TCP
+      port: 443
+      target_port: 443
+    - name: ipa-kpasswd-tcp
+      protocol: TCP
+      port: 464
+      target_port: 464
+    - name: ipa-kpasswd-udp
+      protocol: UDP
+      port: 464
+      target_port: 464
+    - name: ipa-ldaps
+      protocol: TCP
+      port: 636
+      target_port: 636
+    - name: ipa-ldap-replication
+      protocol: TCP
+      port: 7389
+      target_port: 7389
+    - name: ipa-ca-webui
+      protocol: TCP
+      port: 9443
+      target_port: 9443
+    - name: ipa-ca-https
+      protocol: TCP
+      port: 9444
+      target_port: 9444
+    - name: ipa-ca-admin
+      protocol: TCP
+      port: 9445
+      target_port: 9445
 
 - name: Create ipa route
   openshift_v1_route:
@@ -212,16 +212,33 @@
     # TODO: REVIEW
     spec_tls_termination: passthrough
 
-# TODO
-# - name: Create FreeIPA IMAP service principles
-#   shell: "oc exec ipa -c freeipa ipa service-add imap/{{ mda_hostname }}.{{ domain }}"
-#
-# - name: Create FreeIPA SMTP service principles
-#   shell: "oc exec ipa -c freeipa ipa service-add smtp/{{ mta_hostname }}.{{ domain }}"
+- name: Retrieve pod list for namespace
+  k8s_v1_pod_list:
+    namespace: '{{ namespace }}'
+  register: pod_list
+
+- name: Retrieve ipa pod name
+  shell: 'echo {{ pod_list.stdout }} | sed -n -e "s/^\(.*\)\(ipa-\)+[0-9]\(-\)+[a-zA-Z0-9]\(.*\)$/p"'
+  register: ipa_pod_name
+
+- name: Create FreeIPA IMAP service principles
+  shell: 'oc exec {{ ipa_pod_name.stdout }} -c freeipa ipa service-add imap/{{ mda_hostname }}.{{ domain }}'
+
+- name: Create FreeIPA SMTP service principles
+  shell: 'oc exec {{ ipa_pod_name.stdout }} -c freeipa ipa service-add smtp/{{ mta_hostname }}.{{ domain }}'
 
 ##############################################################################
 ## Provision Dovecot
 ##############################################################################
+- name: Create mail storage pvc
+  k8s_v1_persistent_volume_claim:
+    name: mail-storage-pvc
+    namespace: '{{ namespace }}'
+    access_modes:
+      - ReadWriteOnce
+    resources_requests:
+      storage: '{{ mda_volume_capacity }}'
+
 - name: Copy Dovecot configuration
   copy:
     src: dovecot.conf
@@ -232,15 +249,6 @@
     name: dovecot-config
     data:
       dovecot.conf: '$(cat /tmp/config/dovecot.conf)'
-
-- name: Create mail storage pvc
-  k8s_v1_persistent_volume_claim:
-    name: mail-storage-pvc
-    namespace: '{{ namespace }}'
-    access_modes:
-      - ReadWriteOnce
-    resources_requests:
-      storage: '{{ mda_volume_capacity }}'
 
 - name: Create mda deployment config
   openshift_v1_deployment_config:
@@ -321,7 +329,7 @@
     # TODO: REVIEW
     # dns_policy: ClusterFirst
     restart_policy: Always
-    service_account_name: {{ service_account_useroot }}
+    service_account_name: '{{ service_account_useroot }}'
     security_context: {}
 
 - name: Create mda service
@@ -334,7 +342,7 @@
     selector:
       app: kontor-suite
       service: mda
-    cluster_ip: {{ mda_cluster_ip }}
+    cluster_ip: '{{ mda_cluster_ip }}'
     ports:
     - name: mda-lmtp-port-24
       protocol: TCP
@@ -389,8 +397,8 @@
 ##############################################################################
 - name: Copy Postfix configuration
   copy:
-    src: {{ item }}
-    dest: /tmp/config/postfix/{{ item }}
+    src: '{{ item }}'
+    dest: '/tmp/config/postfix/{{ item }}'
   with_items:
     - postfix-main.cf
     - postfix-master.cf
@@ -478,7 +486,7 @@
     # TODO: REVIEW
     # dns_policy: ClusterFirst
     restart_policy: Always
-    service_account_name: {{ service_account_useroot }}
+    service_account_name: '{{ service_account_useroot }}'
     security_context: {}
 
 - name: Create mta service
@@ -491,7 +499,7 @@
     selector:
       app: kontor-suite
       service: mta
-    cluster_ip: {{ mta_cluster_ip }}
+    cluster_ip: '{{ mta_cluster_ip }}'
     ports:
     - name: mta-smtp-port-25
       protocol: TCP
