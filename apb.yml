@@ -4,7 +4,7 @@ description: Kontor Digital Communications Suite
 bindable: False
 async: optional
 metadata:
-  displayName: Kontor Suite APB
+  displayName: Kontor APB
 plans:
 - name: default
   description: default non-HA plan

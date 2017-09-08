@@ -1,6 +1,6 @@
 ##############################################################################
 ##
-## Provision Kontor Suite
+## Provision Kontor apb
 ##
 ##############################################################################
 
@@ -27,14 +27,14 @@
     name: ipa
     namespace: '{{ namespace }}'
     labels:
-      app: kontor-suite
+      app: kontor-apb
       service: ipa
     replicas: 1
     selector:
-      app: kontor-suite
+      app: kontor-apb
       service: ipa
     spec_template_metadata_labels:
-      app: kontor-suite
+      app: kontor-apb
       service: ipa
     strategy_type: Recreate
     strategy_recreate_params:
@@ -126,10 +126,10 @@
     name: ipa
     namespace: '{{ namespace }}'
     labels:
-      app: kontor-suite
+      app: kontor-apb
       service: ipa
     selector:
-      app: kontor-suite
+      app: kontor-apb
       service: ipa
     cluster_ip: '{{ ipa_cluster_ip }}'
     ports:
@@ -203,7 +203,7 @@
     name: ipa-https
     namespace: '{{ namespace }}'
     labels:
-      app: kontor-suite
+      app: kontor-apb
       service: ipa
     to_name: ipa
     # TODO: REVIEW
@@ -255,14 +255,14 @@
     name: mda
     namespace: '{{ namespace }}'
     labels:
-      app: kontor-suite
+      app: kontor-apb
       service: mda
     replicas: 1
     selector:
-      app: kontor-suite
+      app: kontor-apb
       service: mda
     spec_template_metadata_labels:
-      app: kontor-suite
+      app: kontor-apb
       service: mda
     strategy_type: Recreate
     triggers:
@@ -337,10 +337,10 @@
     name: mda
     namespace: '{{ namespace }}'
     labels:
-      app: kontor-suite
+      app: kontor-apb
       service: mda
     selector:
-      app: kontor-suite
+      app: kontor-apb
       service: mda
     cluster_ip: '{{ mda_cluster_ip }}'
     ports:
@@ -370,7 +370,7 @@
     name: mda
     namespace: '{{ namespace }}'
     labels:
-      app: kontor-suite
+      app: kontor-apb
       service: mda
     to_name: mda
     # TODO: REVIEW
@@ -421,14 +421,14 @@
     name: mta
     namespace: '{{ namespace }}'
     labels:
-      app: kontor-suite
+      app: kontor-apb
       service: mta
     replicas: 1
     selector:
-      app: kontor-suite
+      app: kontor-apb
       service: mta
     spec_template_metadata_labels:
-      app: kontor-suite
+      app: kontor-apb
       service: mta
     strategy_type: Recreate
     triggers:
@@ -494,10 +494,10 @@
     name: mta
     namespace: '{{ namespace }}'
     labels:
-      app: kontor-suite
+      app: kontor-apb
       service: mta
     selector:
-      app: kontor-suite
+      app: kontor-apb
       service: mta
     cluster_ip: '{{ mta_cluster_ip }}'
     ports:
@@ -523,7 +523,7 @@
     name: mta
     namespace: '{{ namespace }}'
     labels:
-      app: kontor-suite
+      app: kontor-apb
       service: mta
     to_name: mta
     # TODO: REVIEW

@@ -1,4 +1,4 @@
-- name: test lorbus-suite
+- name: kontor-apb playbook to test the application
   hosts: localhost
   gather_facts: false
   connection: local
@@ -10,7 +10,7 @@
   post_tasks:
   - name: Run the provisioning role
     include_role:
-      name: provision-kontor-suite
+      name: provision-kontor-apb
 
   - name: Retrieve pod list for namespace
     k8s_v1_pod_list:
@@ -24,4 +24,4 @@
 
   - name: Run the deprovisioning role
     include_role:
-      name: deprovision-kontor-suite
+      name: deprovision-kontor-apb
