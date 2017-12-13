@@ -1,16 +1,20 @@
 # Contor
+## Communications Cloud
 [![Join the Chat on irc.freenode.org #contor](https://img.shields.io/badge/irc-freenode:%20%23contor-blue.svg)](http://webchat.freenode.net/?channels=%23contor)
 [![License: ALv2](https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ## :construction: WARNING - WORK IN PROGRESS :warning:
 This project is a Work In Progress and not ready for deployment, yet! Please consider contributing!
-## Containerized Communications Cloud
 
-The Contor philosophy is to provide a small yet scalable, easy-to-deploy, highly-automated, robust and reasonably secure infrastructure for digital communications, making it a great solution for personal, residential and small & medium enterprise communications requirements. The admin setting up Contor shall have full control over all deployed services. All components used in Contor are Free and Open Source Software.
+## Introduction
+
+The objective of the Contor project is to provide the user with the means to set up their own personal cloud on their web domain using only open source software, so they're in full control of their data. It aims to provide cloud-storage, email, contacts, calendar, chat and videochat capabilities, all accessible through a browser interface or synced to their favourite app. With a highly-automated setup on a Kubernetes cluster it is easily deployed to any infrastructure, be it self-hosted or cloud-provided by a third-party, and can be maintained, managed and scaled with little effort.
+
+## Containers
 
 Contor will be distributed as an [Ansible Playbook Bundle](https://github.com/ansibleplaybookbundle/ansible-playbook-bundle) for use on [Service Catalog](https://github.com/kubernetes-incubator/service-catalog)-enabled [Kubernetes](https://github.com/kubernetes/kubernetes) clusters. The initial focus will lie on supporting the [OpenShift](https://github.com/openshift/origin) Kubernetes distribution. Check back here later for information on installation, setup and deployment.
 
-## Built With / On Top Of
+## Built On Top Of / With
 
 Base Technology Stack:
 * [Ansible Playbook Bundle](https://github.com/ansibleplaybookbundle/ansible-playbook-bundle) - Packaging Format of the Contor Deliverable
@@ -41,14 +45,11 @@ Features on the Roadmap for later Releases:
 ## Topology
 
 ![Contor Cloud Topology](docs/topology.svg)
+Federated Kubernetes Cluster
 
 ## Contributing
 
 Please read [CODE_OF_CONDUCT.md](https://github.com/contor-cloud/contor/blob/master/CODE_OF_CONDUCT.md) for details on our code of conduct, and [CONTRIBUTING.md](https://github.com/contor-cloud/contor/blob/master/CONTRIBUTING.md) for sending pull requests and contributing to Contor.
-
-## Versioning
-
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/contor-cloud/contor/tags).
 
 ## Authors
 
